@@ -3,6 +3,7 @@ services:
   postgres:
     image: postgres:16
     container_name: pg_standalone
+    mem_limit: 512m
     environment:
       POSTGRES_USER: user
       POSTGRES_PASSWORD: pass
@@ -16,6 +17,7 @@ services:
   citus_coord:
     image: citusdata/citus:12.1
     container_name: citus_coord
+    mem_limit: 512m
     shm_size: 256mb
     environment:
       POSTGRES_USER: user
@@ -31,6 +33,7 @@ services:
   citus_worker1:
     image: citusdata/citus:12.1
     container_name: citus_worker1
+    mem_limit: 512m
     shm_size: 256mb
     environment:
       POSTGRES_USER: user
@@ -44,6 +47,7 @@ services:
   citus_worker2:
     image: citusdata/citus:12.1
     container_name: citus_worker2
+    mem_limit: 512m
     shm_size: 256mb
     environment:
       POSTGRES_USER: user
@@ -58,6 +62,7 @@ services:
   scylla1:
     image: scylladb/scylla:5.4
     container_name: scylla1
+    mem_limit: 768m
     ports:
       - "9042:9042"
     command: --seeds=scylla1 --smp 1 --memory 512M --overprovisioned 1
@@ -67,6 +72,7 @@ services:
   scylla2:
     image: scylladb/scylla:5.4
     container_name: scylla2
+    mem_limit: 768m
     command: --seeds=scylla1 --smp 1 --memory 512M --overprovisioned 1
     volumes:
       - scylla2_data:/var/lib/scylla
@@ -76,6 +82,7 @@ services:
   scylla3:
     image: scylladb/scylla:5.4
     container_name: scylla3
+    mem_limit: 768m
     command: --seeds=scylla1 --smp 1 --memory 512M --overprovisioned 1
     volumes:
       - scylla3_data:/var/lib/scylla
@@ -86,7 +93,8 @@ services:
   mongo1:
     image: mongo:7
     container_name: mongo1
-    command: mongod --replSet rs0 --bind_ip_all
+    mem_limit: 512m
+    command: mongod --replSet rs0 --bind_ip_all --wiredTigerCacheSizeGB 0.25
     ports:
       - "27017:27017"
     volumes:
@@ -95,14 +103,16 @@ services:
   mongo2:
     image: mongo:7
     container_name: mongo2
-    command: mongod --replSet rs0 --bind_ip_all
+    mem_limit: 512m
+    command: mongod --replSet rs0 --bind_ip_all --wiredTigerCacheSizeGB 0.25
     volumes:
       - mongo2_data:/data/db
 
   mongo3:
     image: mongo:7
     container_name: mongo3
-    command: mongod --replSet rs0 --bind_ip_all
+    mem_limit: 512m
+    command: mongod --replSet rs0 --bind_ip_all --wiredTigerCacheSizeGB 0.25
     volumes:
       - mongo3_data:/data/db
 
