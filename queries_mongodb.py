@@ -24,7 +24,7 @@ def timed(fn, name):
     return avg, result
 
 def main():
-    client = MongoClient("mongodb://localhost:27017/?replicaSet=rs0")
+    client = MongoClient("mongodb://localhost:27017/", directConnection=True)
     db = client["foursquaredb"]
     results = {}
 

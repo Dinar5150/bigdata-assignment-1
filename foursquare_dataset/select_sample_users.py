@@ -1,7 +1,7 @@
 import pandas as pd
 import traceback
 
-USERS_PERC = 0.05
+USERS_PERC = 0.01
 SID = input("Enter your SID: ")
 try:
     SID = int(SID)
