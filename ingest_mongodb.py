@@ -18,7 +18,7 @@ def ingest():
     start = time.time()
 
     # users
-    print("Ingesting users...")
+    print("[MongoDB] Ingesting users...")
     batch = []
     with open(f"{DATA}/my_users.csv") as f:
         reader = csv.reader(f)
@@ -30,10 +30,10 @@ def ingest():
                 batch = []
         if batch:
             db.users.insert_many(batch, ordered=False)
-    print("  users done.")
+    print("[MongoDB]   users done.")
 
     # pois
-    print("Ingesting POIs...")
+    print("[MongoDB] Ingesting POIs...")
     batch = []
     with open(f"{DATA}/my_POIs.tsv") as f:
         for line in f:
@@ -51,10 +51,10 @@ def ingest():
                     batch = []
         if batch:
             db.pois.insert_many(batch, ordered=False)
-    print("  pois done.")
+    print("[MongoDB]   POIs done.")
 
     # checkins
-    print("Ingesting checkins...")
+    print("[MongoDB] Ingesting checkins...")
     batch = []
     count = 0
     with open(f"{DATA}/my_checkins_anonymized.tsv") as f:
@@ -73,14 +73,14 @@ def ingest():
                 count += len(batch)
                 batch = []
                 if count % 100000 == 0:
-                    print(f"    {count} checkins inserted...")
+                    print(f"[MongoDB]   {count} checkins...")
         if batch:
             db.checkins.insert_many(batch, ordered=False)
             count += len(batch)
-    print(f"  checkins done: {count} rows.")
+    print(f"[MongoDB]   checkins done: {count} rows.")
 
     # friendships_before
-    print("Ingesting friendships_before...")
+    print("[MongoDB] Ingesting friendships_before...")
     batch = []
     with open(f"{DATA}/my_friendships_before.tsv") as f:
         for line in f:
@@ -92,10 +92,10 @@ def ingest():
                     batch = []
         if batch:
             db.friendships_before.insert_many(batch, ordered=False)
-    print("  friendships_before done.")
+    print("[MongoDB]   friendships_before done.")
 
     # friendships_after
-    print("Ingesting friendships_after...")
+    print("[MongoDB] Ingesting friendships_after...")
     batch = []
     with open(f"{DATA}/my_friendships_after.tsv") as f:
         for line in f:
@@ -107,11 +107,11 @@ def ingest():
                     batch = []
         if batch:
             db.friendships_after.insert_many(batch, ordered=False)
-    print("  friendships_after done.")
+    print("[MongoDB]   friendships_after done.")
 
     elapsed = time.time() - start
     client.close()
-    print(f"\nMongoDB ingestion finished in {elapsed:.2f} seconds.")
+    print(f"\n[MongoDB] Ingestion finished in {elapsed:.2f} seconds.")
 
 if __name__ == "__main__":
     ingest()

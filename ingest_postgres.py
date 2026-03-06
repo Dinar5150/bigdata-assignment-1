@@ -20,7 +20,7 @@ def ingest():
     start = time.time()
 
     # users
-    print("Ingesting users...")
+    print("[PostgreSQL] Ingesting users...")
     with open(f"{DATA}/my_users.csv") as f:
         reader = csv.reader(f)
         next(reader)  # skip header
@@ -34,10 +34,10 @@ def ingest():
         if batch:
             cur.executemany("INSERT INTO users (user_id) VALUES (%s) ON CONFLICT DO NOTHING", batch)
             conn.commit()
-    print("  users done.")
+    print("[PostgreSQL]   users done.")
 
     # pois
-    print("Ingesting POIs...")
+    print("[PostgreSQL] Ingesting POIs...")
     with open(f"{DATA}/my_POIs.tsv") as f:
         reader = csv.reader(f, delimiter="\t")
         batch = []
@@ -56,10 +56,10 @@ def ingest():
                 batch
             )
             conn.commit()
-    print("  pois done.")
+    print("[PostgreSQL]   POIs done.")
 
     # checkins
-    print("Ingesting checkins...")
+    print("[PostgreSQL] Ingesting checkins...")
     inserted = 0
     with open(f"{DATA}/my_checkins_anonymized.tsv") as f:
         reader = csv.reader(f, delimiter="\t")
@@ -75,7 +75,7 @@ def ingest():
                 inserted += len(batch)
                 batch = []
                 if inserted % 100000 == 0:
-                    print(f"    {inserted} checkins inserted...")
+                    print(f"[PostgreSQL]   {inserted} checkins...")
         if batch:
             cur.executemany(
                 "INSERT INTO checkins (user_id, venue_id, utc_time, timezone_offset) VALUES (%s,%s,%s,%s)",
@@ -83,10 +83,10 @@ def ingest():
             )
             conn.commit()
             inserted += len(batch)
-    print(f"  checkins done: {inserted} rows.")
+    print(f"[PostgreSQL]   checkins done: {inserted} rows.")
 
     # friendships_before
-    print("Ingesting friendships_before...")
+    print("[PostgreSQL] Ingesting friendships_before...")
     with open(f"{DATA}/my_friendships_before.tsv") as f:
         reader = csv.reader(f, delimiter="\t")
         batch = []
@@ -105,10 +105,10 @@ def ingest():
                 batch
             )
             conn.commit()
-    print("  friendships_before done.")
+    print("[PostgreSQL]   friendships_before done.")
 
     # friendships_after
-    print("Ingesting friendships_after...")
+    print("[PostgreSQL] Ingesting friendships_after...")
     with open(f"{DATA}/my_friendships_after.tsv") as f:
         reader = csv.reader(f, delimiter="\t")
         batch = []
@@ -127,12 +127,12 @@ def ingest():
                 batch
             )
             conn.commit()
-    print("  friendships_after done.")
+    print("[PostgreSQL]   friendships_after done.")
 
     elapsed = time.time() - start
     cur.close()
     conn.close()
-    print(f"\nPostgreSQL ingestion finished in {elapsed:.2f} seconds.")
+    print(f"\n[PostgreSQL] Ingestion finished in {elapsed:.2f} seconds.")
 
 if __name__ == "__main__":
     ingest()
