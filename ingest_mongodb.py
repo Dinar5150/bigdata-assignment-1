@@ -113,5 +113,12 @@ def ingest():
     client.close()
     print(f"\n[MongoDB] Ingestion finished in {elapsed:.2f} seconds.")
 
+    import json
+    with open("ingest_time_mongodb.json", "w") as f:
+        json.dump({"time": elapsed}, f)
+
+    from docker_stats import print_db_info
+    print_db_info("MongoDB")
+
 if __name__ == "__main__":
     ingest()

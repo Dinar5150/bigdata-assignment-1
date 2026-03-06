@@ -121,5 +121,12 @@ def ingest():
     cluster.shutdown()
     print(f"\n[ScyllaDB] Ingestion finished in {elapsed:.2f} seconds.")
 
+    import json
+    with open("ingest_time_scylladb.json", "w") as f:
+        json.dump({"time": elapsed}, f)
+
+    from docker_stats import print_db_info
+    print_db_info("ScyllaDB")
+
 if __name__ == "__main__":
     ingest()
