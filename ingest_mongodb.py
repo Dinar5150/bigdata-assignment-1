@@ -12,7 +12,8 @@ DATA = "foursquare_dataset"
 BATCH = 5000
 
 def ingest():
-    client = MongoClient("mongodb://localhost:27017/", directConnection=True)
+    client = MongoClient("mongodb://localhost:27017/", directConnection=True,
+                         serverSelectionTimeoutMS=60000, socketTimeoutMS=60000)
     db = client["foursquaredb"]
 
     start = time.time()
