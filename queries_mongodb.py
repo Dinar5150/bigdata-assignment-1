@@ -28,18 +28,11 @@ def main():
     db = client["foursquaredb"]
     results = {}
 
-    # Q1: top 10 countries by total checkins
+    # Q1: top 10 countries by total checkins (uses embedded country field)
     print("Q1: Top 10 countries with highest total check-ins")
     def q1():
         pipeline = [
-            {"$lookup": {
-                "from": "pois",
-                "localField": "venue_id",
-                "foreignField": "venue_id",
-                "as": "poi"
-            }},
-            {"$unwind": "$poi"},
-            {"$group": {"_id": "$poi.country", "total": {"$sum": 1}}},
+            {"$group": {"_id": "$country", "total": {"$sum": 1}}},
             {"$sort": {"total": -1}},
             {"$limit": 10}
         ]
@@ -96,27 +89,23 @@ def main():
     for uid, vid in res[:20]:
         print(f"    user={uid}, venue={vid}")
 
-    # Q3: most attractive venues by country
+    # Q3: most attractive venues by country (uses embedded country/category)
     print("Q3: Most attractive venues by country")
     def q3():
         pipeline = [
-            {"$group": {"_id": "$venue_id", "total_shares": {"$sum": 1}}},
+            {"$group": {
+                "_id": "$venue_id",
+                "total_shares": {"$sum": 1},
+                "country": {"$first": "$country"},
+                "category": {"$first": "$category"}
+            }},
             {"$sort": {"total_shares": -1}},
             {"$limit": 20},
-            {"$lookup": {
-                "from": "pois",
-                "localField": "_id",
-                "foreignField": "venue_id",
-                "as": "poi"
-            }},
-            {"$unwind": "$poi"},
             {"$project": {
                 "venue_id": "$_id",
                 "total_shares": 1,
-                "country": "$poi.country",
-                "category": "$poi.category",
-                "latitude": "$poi.latitude",
-                "longitude": "$poi.longitude"
+                "country": 1,
+                "category": 1
             }}
         ]
         return list(db.checkins.aggregate(pipeline, allowDiskUse=True))

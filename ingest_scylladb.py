@@ -12,17 +12,18 @@ from cassandra.cluster import Cluster
 from cassandra.concurrent import execute_concurrent_with_args
 
 DATA = "foursquare_dataset"
-CONC = 200  # concurrent requests
+CONC = 500  # concurrent requests
+CHUNK = 10000  # rows per chunk
 
 def parse_time(s):
     return datetime.strptime(s, "%a %b %d %H:%M:%S %z %Y")
 
 def bulk_insert(session, prep, rows, label=""):
-    for i in range(0, len(rows), 5000):
-        batch = rows[i:i+5000]
+    for i in range(0, len(rows), CHUNK):
+        batch = rows[i:i+CHUNK]
         execute_concurrent_with_args(session, prep, batch, concurrency=CONC)
         if label:
-            print(f"[ScyllaDB]   {label}: {min(i+5000, len(rows))}/{len(rows)}")
+            print(f"[ScyllaDB]   {label}: {min(i+CHUNK, len(rows))}/{len(rows)}")
 
 def ingest():
     cluster = Cluster(["127.0.0.1"], port=9042)

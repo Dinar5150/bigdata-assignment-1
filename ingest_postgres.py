@@ -2,14 +2,14 @@
 ingest_postgres.py
 
 Loads my_* data files into standalone PostgreSQL.
-Measures and reports total ingestion time.
+Uses COPY for fast bulk loading.
 """
 import time
 import psycopg2
 import csv
+from io import StringIO
 
 CONN = dict(host="localhost", port=5432, dbname="foursquaredb", user="user", password="pass")
-BATCH = 5000
 DATA = "foursquare_dataset"
 
 def ingest():
@@ -21,112 +21,60 @@ def ingest():
 
     # users
     print("[PostgreSQL] Ingesting users...")
+    buf = StringIO()
     with open(f"{DATA}/my_users.csv") as f:
         reader = csv.reader(f)
-        next(reader)  # skip header
-        batch = []
+        next(reader)
         for row in reader:
-            batch.append((int(row[0]),))
-            if len(batch) >= BATCH:
-                cur.executemany("INSERT INTO users (user_id) VALUES (%s) ON CONFLICT DO NOTHING", batch)
-                conn.commit()
-                batch = []
-        if batch:
-            cur.executemany("INSERT INTO users (user_id) VALUES (%s) ON CONFLICT DO NOTHING", batch)
-            conn.commit()
+            buf.write(row[0] + "\n")
+    buf.seek(0)
+    cur.copy_expert("COPY users (user_id) FROM STDIN WITH (FORMAT text)", buf)
+    conn.commit()
     print("[PostgreSQL]   users done.")
 
     # pois
     print("[PostgreSQL] Ingesting POIs...")
-    with open(f"{DATA}/my_POIs.tsv") as f:
-        reader = csv.reader(f, delimiter="\t")
-        batch = []
-        for row in reader:
-            batch.append((row[0], float(row[1]), float(row[2]), row[3], row[4]))
-            if len(batch) >= BATCH:
-                cur.executemany(
-                    "INSERT INTO pois (venue_id, latitude, longitude, category, country) VALUES (%s,%s,%s,%s,%s) ON CONFLICT DO NOTHING",
-                    batch
-                )
-                conn.commit()
-                batch = []
-        if batch:
-            cur.executemany(
-                "INSERT INTO pois (venue_id, latitude, longitude, category, country) VALUES (%s,%s,%s,%s,%s) ON CONFLICT DO NOTHING",
-                batch
-            )
-            conn.commit()
+    buf = StringIO()
+    with open(f"{DATA}/my_POIs.tsv", encoding="utf-8", errors="replace") as f:
+        buf.write(f.read())
+    buf.seek(0)
+    cur.copy_expert("COPY pois (venue_id, latitude, longitude, category, country) FROM STDIN WITH (FORMAT text, DELIMITER E'\\t')", buf)
+    conn.commit()
     print("[PostgreSQL]   POIs done.")
 
     # checkins
     print("[PostgreSQL] Ingesting checkins...")
-    inserted = 0
-    with open(f"{DATA}/my_checkins_anonymized.tsv") as f:
-        reader = csv.reader(f, delimiter="\t")
-        batch = []
-        for row in reader:
-            batch.append((int(row[0]), row[1], row[2], int(row[3])))
-            if len(batch) >= BATCH:
-                cur.executemany(
-                    "INSERT INTO checkins (user_id, venue_id, utc_time, timezone_offset) VALUES (%s,%s,%s,%s)",
-                    batch
-                )
-                conn.commit()
-                inserted += len(batch)
-                batch = []
-                if inserted % 100000 == 0:
-                    print(f"[PostgreSQL]   {inserted} checkins...")
-        if batch:
-            cur.executemany(
-                "INSERT INTO checkins (user_id, venue_id, utc_time, timezone_offset) VALUES (%s,%s,%s,%s)",
-                batch
-            )
-            conn.commit()
-            inserted += len(batch)
-    print(f"[PostgreSQL]   checkins done: {inserted} rows.")
+    buf = StringIO()
+    count = 0
+    with open(f"{DATA}/my_checkins_anonymized.tsv", encoding="utf-8", errors="replace") as f:
+        for line in f:
+            parts = line.strip().split("\t")
+            if len(parts) >= 4:
+                buf.write(f"{parts[0]}\t{parts[1]}\t{parts[2]}\t{parts[3]}\n")
+                count += 1
+    buf.seek(0)
+    cur.copy_expert("COPY checkins (user_id, venue_id, utc_time, timezone_offset) FROM STDIN WITH (FORMAT text, DELIMITER E'\\t')", buf)
+    conn.commit()
+    print(f"[PostgreSQL]   checkins done: {count} rows.")
 
     # friendships_before
     print("[PostgreSQL] Ingesting friendships_before...")
+    buf = StringIO()
     with open(f"{DATA}/my_friendships_before.tsv") as f:
-        reader = csv.reader(f, delimiter="\t")
-        batch = []
-        for row in reader:
-            batch.append((int(row[0]), int(row[1])))
-            if len(batch) >= BATCH:
-                cur.executemany(
-                    "INSERT INTO friendships_before (user_id, friend_id) VALUES (%s,%s) ON CONFLICT DO NOTHING",
-                    batch
-                )
-                conn.commit()
-                batch = []
-        if batch:
-            cur.executemany(
-                "INSERT INTO friendships_before (user_id, friend_id) VALUES (%s,%s) ON CONFLICT DO NOTHING",
-                batch
-            )
-            conn.commit()
+        buf.write(f.read())
+    buf.seek(0)
+    cur.copy_expert("COPY friendships_before (user_id, friend_id) FROM STDIN WITH (FORMAT text, DELIMITER E'\\t')", buf)
+    conn.commit()
     print("[PostgreSQL]   friendships_before done.")
 
     # friendships_after
     print("[PostgreSQL] Ingesting friendships_after...")
+    buf = StringIO()
     with open(f"{DATA}/my_friendships_after.tsv") as f:
-        reader = csv.reader(f, delimiter="\t")
-        batch = []
-        for row in reader:
-            batch.append((int(row[0]), int(row[1])))
-            if len(batch) >= BATCH:
-                cur.executemany(
-                    "INSERT INTO friendships_after (user_id, friend_id) VALUES (%s,%s) ON CONFLICT DO NOTHING",
-                    batch
-                )
-                conn.commit()
-                batch = []
-        if batch:
-            cur.executemany(
-                "INSERT INTO friendships_after (user_id, friend_id) VALUES (%s,%s) ON CONFLICT DO NOTHING",
-                batch
-            )
-            conn.commit()
+        buf.write(f.read())
+    buf.seek(0)
+    cur.copy_expert("COPY friendships_after (user_id, friend_id) FROM STDIN WITH (FORMAT text, DELIMITER E'\\t')", buf)
+    conn.commit()
     print("[PostgreSQL]   friendships_after done.")
 
     elapsed = time.time() - start

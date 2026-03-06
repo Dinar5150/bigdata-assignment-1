@@ -53,7 +53,12 @@ def ingest():
             db.pois.insert_many(batch, ordered=False)
     print("[MongoDB]   POIs done.")
 
-    # checkins
+    # checkins (denormalized: embed country + category from POIs)
+    print("[MongoDB] Loading POI lookup for denormalization...")
+    pois = {}
+    for doc in db.pois.find({}, {"_id": 0, "venue_id": 1, "country": 1, "category": 1}):
+        pois[doc["venue_id"]] = (doc.get("country", "XX"), doc.get("category", "Unknown"))
+
     print("[MongoDB] Ingesting checkins...")
     batch = []
     count = 0
@@ -62,11 +67,15 @@ def ingest():
             parts = line.strip().split("\t")
             if len(parts) < 4:
                 continue
+            vid = parts[1]
+            poi = pois.get(vid, ("XX", "Unknown"))
             batch.append({
                 "user_id": int(parts[0]),
-                "venue_id": parts[1],
+                "venue_id": vid,
                 "utc_time": parts[2],
-                "timezone_offset": int(parts[3])
+                "timezone_offset": int(parts[3]),
+                "country": poi[0],
+                "category": poi[1]
             })
             if len(batch) >= BATCH:
                 db.checkins.insert_many(batch, ordered=False)

@@ -103,6 +103,7 @@ def setup_mongo():
     db = client["foursquaredb"]
     db.checkins.create_index("user_id")
     db.checkins.create_index("venue_id")
+    db.checkins.create_index("country")
     db.pois.create_index("country")
     db.pois.create_index([("category", "text")])
     db.friendships_before.create_index("user_id")
