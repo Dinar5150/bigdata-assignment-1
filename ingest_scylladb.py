@@ -3,62 +3,69 @@ ingest_scylladb.py
 
 Loads my_* data files into ScyllaDB.
 Measures and reports total ingestion time.
+Uses execute_concurrent for fast parallel inserts.
 """
 import time
 import csv
 from datetime import datetime
 from cassandra.cluster import Cluster
-from cassandra.query import BatchStatement, SimpleStatement
+from cassandra.concurrent import execute_concurrent_with_args
 
 DATA = "foursquare_dataset"
-BATCH_SIZE = 50  # scylla batches should be small
+CONC = 200  # concurrent requests
 
 def parse_time(s):
-    # format: "Tue Apr 03 18:00:08 +0000 2012"
     return datetime.strptime(s, "%a %b %d %H:%M:%S %z %Y")
+
+def bulk_insert(session, prep, rows, label=""):
+    for i in range(0, len(rows), 5000):
+        batch = rows[i:i+5000]
+        execute_concurrent_with_args(session, prep, batch, concurrency=CONC)
+        if label:
+            print(f"    {label}: {min(i+5000, len(rows))}/{len(rows)}")
 
 def ingest():
     cluster = Cluster(["127.0.0.1"], port=9042)
     session = cluster.connect("foursquaredb")
+    session.default_timeout = 60
 
     start = time.time()
 
     # load pois into a dict for denormalized checkin tables
     print("Loading POIs into memory...")
     pois = {}
-    with open(f"{DATA}/my_POIs.tsv") as f:
+    with open(f"{DATA}/my_POIs.tsv", encoding="utf-8", errors="replace") as f:
         for line in f:
             parts = line.strip().split("\t")
             if len(parts) == 5:
-                pois[parts[0]] = {
-                    "latitude": float(parts[1]),
-                    "longitude": float(parts[2]),
-                    "category": parts[3],
-                    "country": parts[4]
-                }
+                pois[parts[0]] = (float(parts[1]), float(parts[2]), parts[3], parts[4])
     print(f"  {len(pois)} POIs loaded.")
 
     # users
     print("Ingesting users...")
     prep = session.prepare("INSERT INTO users (user_id) VALUES (?)")
+    rows = []
     with open(f"{DATA}/my_users.csv") as f:
         reader = csv.reader(f)
         next(reader)
         for row in reader:
-            session.execute(prep, (int(row[0]),))
-    print("  users done.")
+            rows.append((int(row[0]),))
+    bulk_insert(session, prep, rows, "users")
+    print(f"  users done: {len(rows)}")
 
-    # pois table
+    # pois
     print("Ingesting POIs...")
     prep = session.prepare("INSERT INTO pois (venue_id, latitude, longitude, category, country) VALUES (?,?,?,?,?)")
-    with open(f"{DATA}/my_POIs.tsv") as f:
+    rows = []
+    with open(f"{DATA}/my_POIs.tsv", encoding="utf-8", errors="replace") as f:
         for line in f:
             parts = line.strip().split("\t")
             if len(parts) == 5:
-                session.execute(prep, (parts[0], float(parts[1]), float(parts[2]), parts[3], parts[4]))
-    print("  pois done.")
+                rows.append((parts[0], float(parts[1]), float(parts[2]), parts[3], parts[4]))
+    bulk_insert(session, prep, rows, "pois")
+    print(f"  pois done: {len(rows)}")
 
-    # checkins (into both denormalized tables)
+    # checkins
     print("Ingesting checkins...")
     prep_country = session.prepare(
         "INSERT INTO checkins_by_country (country, venue_id, user_id, utc_time, timezone_offset, latitude, longitude, category) VALUES (?,?,?,?,?,?,?,?)"
@@ -66,8 +73,9 @@ def ingest():
     prep_user = session.prepare(
         "INSERT INTO checkins_by_user (user_id, venue_id, utc_time, timezone_offset, country, latitude, longitude, category) VALUES (?,?,?,?,?,?,?,?)"
     )
-    count = 0
-    with open(f"{DATA}/my_checkins_anonymized.tsv") as f:
+    rows_country = []
+    rows_user = []
+    with open(f"{DATA}/my_checkins_anonymized.tsv", encoding="utf-8", errors="replace") as f:
         for line in f:
             parts = line.strip().split("\t")
             if len(parts) < 4:
@@ -76,34 +84,37 @@ def ingest():
             vid = parts[1]
             ts = parse_time(parts[2])
             tz = int(parts[3])
-            poi = pois.get(vid, {"latitude": 0.0, "longitude": 0.0, "category": "Unknown", "country": "XX"})
-
-            session.execute(prep_country, (poi["country"], vid, uid, ts, tz, poi["latitude"], poi["longitude"], poi["category"]))
-            session.execute(prep_user, (uid, vid, ts, tz, poi["country"], poi["latitude"], poi["longitude"], poi["category"]))
-            count += 1
-            if count % 10000 == 0:
-                print(f"    {count} checkins inserted...")
-    print(f"  checkins done: {count} rows.")
+            poi = pois.get(vid, (0.0, 0.0, "Unknown", "XX"))
+            rows_country.append((poi[3], vid, uid, ts, tz, poi[0], poi[1], poi[2]))
+            rows_user.append((uid, vid, ts, tz, poi[3], poi[0], poi[1], poi[2]))
+    print(f"  loaded {len(rows_country)} checkins, inserting...")
+    bulk_insert(session, prep_country, rows_country, "checkins_by_country")
+    bulk_insert(session, prep_user, rows_user, "checkins_by_user")
+    print(f"  checkins done: {len(rows_country)}")
 
     # friendships_before
     print("Ingesting friendships_before...")
     prep = session.prepare("INSERT INTO friendships_before (user_id, friend_id) VALUES (?,?)")
+    rows = []
     with open(f"{DATA}/my_friendships_before.tsv") as f:
         for line in f:
             parts = line.strip().split("\t")
             if len(parts) == 2:
-                session.execute(prep, (int(parts[0]), int(parts[1])))
-    print("  friendships_before done.")
+                rows.append((int(parts[0]), int(parts[1])))
+    bulk_insert(session, prep, rows, "friendships_before")
+    print(f"  friendships_before done: {len(rows)}")
 
     # friendships_after
     print("Ingesting friendships_after...")
     prep = session.prepare("INSERT INTO friendships_after (user_id, friend_id) VALUES (?,?)")
+    rows = []
     with open(f"{DATA}/my_friendships_after.tsv") as f:
         for line in f:
             parts = line.strip().split("\t")
             if len(parts) == 2:
-                session.execute(prep, (int(parts[0]), int(parts[1])))
-    print("  friendships_after done.")
+                rows.append((int(parts[0]), int(parts[1])))
+    bulk_insert(session, prep, rows, "friendships_after")
+    print(f"  friendships_after done: {len(rows)}")
 
     elapsed = time.time() - start
     session.shutdown()
