@@ -1,0 +1,120 @@
+version: "3.8"
+
+services:
+  # ---- PostgreSQL standalone ----
+  postgres:
+    image: postgres:16
+    container_name: pg_standalone
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: pass
+      POSTGRES_DB: foursquaredb
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+      - ./init_scripts/pg_init.sql:/docker-entrypoint-initdb.d/01_init.sql
+
+  # ---- Citus (coordinator + 2 workers) ----
+  citus_coord:
+    image: citusdata/citus:12.1
+    container_name: citus_coord
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: pass
+      POSTGRES_DB: foursquaredb
+    ports:
+      - "5433:5432"
+    volumes:
+      - citus_coord_data:/var/lib/postgresql/data
+      - ./init_scripts/citus_init.sql:/docker-entrypoint-initdb.d/01_init.sql
+    labels:
+      com.citusdata.role: "Coordinator"
+
+  citus_worker1:
+    image: citusdata/citus:12.1
+    container_name: citus_worker1
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: pass
+      POSTGRES_DB: foursquaredb
+    volumes:
+      - citus_w1_data:/var/lib/postgresql/data
+    labels:
+      com.citusdata.role: "Worker"
+
+  citus_worker2:
+    image: citusdata/citus:12.1
+    container_name: citus_worker2
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: pass
+      POSTGRES_DB: foursquaredb
+    volumes:
+      - citus_w2_data:/var/lib/postgresql/data
+    labels:
+      com.citusdata.role: "Worker"
+
+  # ---- ScyllaDB cluster (3 nodes) ----
+  scylla1:
+    image: scylladb/scylla:5.4
+    container_name: scylla1
+    ports:
+      - "9042:9042"
+    command: --seeds=scylla1 --smp 1 --memory 512M --overprovisioned 1
+    volumes:
+      - scylla1_data:/var/lib/scylla
+
+  scylla2:
+    image: scylladb/scylla:5.4
+    container_name: scylla2
+    command: --seeds=scylla1 --smp 1 --memory 512M --overprovisioned 1
+    volumes:
+      - scylla2_data:/var/lib/scylla
+    depends_on:
+      - scylla1
+
+  scylla3:
+    image: scylladb/scylla:5.4
+    container_name: scylla3
+    command: --seeds=scylla1 --smp 1 --memory 512M --overprovisioned 1
+    volumes:
+      - scylla3_data:/var/lib/scylla
+    depends_on:
+      - scylla1
+
+  # ---- MongoDB replica set (3 nodes) ----
+  mongo1:
+    image: mongo:7
+    container_name: mongo1
+    command: mongod --replSet rs0 --bind_ip_all
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo1_data:/data/db
+
+  mongo2:
+    image: mongo:7
+    container_name: mongo2
+    command: mongod --replSet rs0 --bind_ip_all
+    volumes:
+      - mongo2_data:/data/db
+
+  mongo3:
+    image: mongo:7
+    container_name: mongo3
+    command: mongod --replSet rs0 --bind_ip_all
+    volumes:
+      - mongo3_data:/data/db
+
+volumes:
+  pg_data:
+  citus_coord_data:
+  citus_w1_data:
+  citus_w2_data:
+  scylla1_data:
+  scylla2_data:
+  scylla3_data:
+  mongo1_data:
+  mongo2_data:
+  mongo3_data:
