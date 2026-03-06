@@ -81,8 +81,6 @@ def ingest():
                 db.checkins.insert_many(batch, ordered=False)
                 count += len(batch)
                 batch = []
-                if count % 100000 == 0:
-                    print(f"[MongoDB]   {count} checkins...")
         if batch:
             db.checkins.insert_many(batch, ordered=False)
             count += len(batch)

@@ -22,8 +22,6 @@ def bulk_insert(session, prep, rows, label=""):
     for i in range(0, len(rows), CHUNK):
         batch = rows[i:i+CHUNK]
         execute_concurrent_with_args(session, prep, batch, concurrency=CONC)
-        if label:
-            print(f"[ScyllaDB]   {label}: {min(i+CHUNK, len(rows))}/{len(rows)}")
 
 def ingest():
     cluster = Cluster(["127.0.0.1"], port=9042)
