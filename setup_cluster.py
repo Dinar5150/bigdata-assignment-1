@@ -1,7 +1,8 @@
 """
 setup_cluster.py
 
-Sets up Citus workers, ScyllaDB keyspace/tables, and MongoDB replica set.
+Creates tables/indexes for PostgreSQL and Citus,
+sets up Citus workers, ScyllaDB keyspace/tables, and MongoDB replica set.
 Run this AFTER docker-compose up -d and waiting ~60s for services to start.
 """
 import time
@@ -9,11 +10,91 @@ import psycopg2
 from cassandra.cluster import Cluster
 from pymongo import MongoClient
 
+PG_SCHEMA = """
+CREATE TABLE IF NOT EXISTS users (
+    user_id INTEGER PRIMARY KEY
+);
+CREATE TABLE IF NOT EXISTS pois (
+    venue_id VARCHAR(64) PRIMARY KEY,
+    latitude DOUBLE PRECISION,
+    longitude DOUBLE PRECISION,
+    category VARCHAR(256),
+    country VARCHAR(4)
+);
+CREATE TABLE IF NOT EXISTS checkins (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER REFERENCES users(user_id),
+    venue_id VARCHAR(64) REFERENCES pois(venue_id),
+    utc_time TIMESTAMP,
+    timezone_offset INTEGER
+);
+CREATE TABLE IF NOT EXISTS friendships_before (
+    user_id INTEGER REFERENCES users(user_id),
+    friend_id INTEGER REFERENCES users(user_id),
+    PRIMARY KEY (user_id, friend_id)
+);
+CREATE TABLE IF NOT EXISTS friendships_after (
+    user_id INTEGER REFERENCES users(user_id),
+    friend_id INTEGER REFERENCES users(user_id),
+    PRIMARY KEY (user_id, friend_id)
+);
+CREATE INDEX IF NOT EXISTS idx_checkins_user ON checkins(user_id);
+CREATE INDEX IF NOT EXISTS idx_checkins_venue ON checkins(venue_id);
+CREATE INDEX IF NOT EXISTS idx_pois_country ON pois(country);
+CREATE INDEX IF NOT EXISTS idx_pois_category ON pois USING gin(to_tsvector('english', category));
+"""
+
+CITUS_SCHEMA = """
+CREATE TABLE IF NOT EXISTS users (
+    user_id INTEGER PRIMARY KEY
+);
+CREATE TABLE IF NOT EXISTS pois (
+    venue_id VARCHAR(64) PRIMARY KEY,
+    latitude DOUBLE PRECISION,
+    longitude DOUBLE PRECISION,
+    category VARCHAR(256),
+    country VARCHAR(4)
+);
+CREATE TABLE IF NOT EXISTS checkins (
+    id SERIAL,
+    user_id INTEGER,
+    venue_id VARCHAR(64),
+    utc_time TIMESTAMP,
+    timezone_offset INTEGER,
+    PRIMARY KEY (user_id, id)
+);
+CREATE TABLE IF NOT EXISTS friendships_before (
+    user_id INTEGER,
+    friend_id INTEGER,
+    PRIMARY KEY (user_id, friend_id)
+);
+CREATE TABLE IF NOT EXISTS friendships_after (
+    user_id INTEGER,
+    friend_id INTEGER,
+    PRIMARY KEY (user_id, friend_id)
+);
+CREATE INDEX IF NOT EXISTS idx_checkins_venue ON checkins(venue_id);
+CREATE INDEX IF NOT EXISTS idx_pois_country ON pois(country);
+CREATE INDEX IF NOT EXISTS idx_pois_category ON pois USING gin(to_tsvector('english', category));
+"""
+
+def setup_postgres():
+    print("=== Setting up PostgreSQL ===")
+    conn = psycopg2.connect(host="localhost", port=5432, dbname="foursquaredb", user="user", password="pass")
+    conn.autocommit = True
+    cur = conn.cursor()
+    cur.execute(PG_SCHEMA)
+    cur.close()
+    conn.close()
+    print("PostgreSQL ready.")
+
 def setup_citus():
     print("=== Setting up Citus cluster ===")
     conn = psycopg2.connect(host="localhost", port=5433, dbname="foursquaredb", user="user", password="pass")
     conn.autocommit = True
     cur = conn.cursor()
+
+    cur.execute(CITUS_SCHEMA)
 
     cur.execute("SELECT master_add_node('citus_worker1', 5432);")
     cur.execute("SELECT master_add_node('citus_worker2', 5432);")
@@ -112,6 +193,7 @@ def setup_mongo():
     print("MongoDB ready.")
 
 if __name__ == "__main__":
+    setup_postgres()
     setup_citus()
     setup_scylla()
     setup_mongo()

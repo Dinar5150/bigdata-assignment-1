@@ -11,7 +11,6 @@ services:
       - "5432:5432"
     volumes:
       - pg_data:/var/lib/postgresql/data
-      - ./init_scripts/pg_init.sql:/docker-entrypoint-initdb.d/01_init.sql
 
   # ---- Citus (coordinator + 2 workers) ----
   citus_coord:
@@ -26,7 +25,6 @@ services:
       - "5433:5432"
     volumes:
       - citus_coord_data:/var/lib/postgresql/data
-      - ./init_scripts/citus_init.sql:/docker-entrypoint-initdb.d/01_init.sql
     labels:
       com.citusdata.role: "Coordinator"
 
