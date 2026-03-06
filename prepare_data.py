@@ -15,7 +15,7 @@ print(f"Total users in slice: {len(my_users)}")
 
 # --- checkins ---
 print("\nFiltering checkins...")
-out = open("foursquare_dataset/my_checkins_anonymized.tsv", "w")
+out = open("foursquare_dataset/my_checkins_anonymized.tsv", "w", encoding="utf-8", errors="replace")
 count = 0
 for chunk in pd.read_csv(
     "foursquare_dataset/checkins_anonymized.txt",
@@ -33,7 +33,7 @@ print(f"Done: {count} checkins saved.")
 
 # --- friendships_before ---
 print("\nFiltering friendships_before...")
-out = open("foursquare_dataset/my_friendships_before.tsv", "w")
+out = open("foursquare_dataset/my_friendships_before.tsv", "w", encoding="utf-8", errors="replace")
 count = 0
 for chunk in pd.read_csv(
     "foursquare_dataset/friendship_before_old.txt",
@@ -50,7 +50,7 @@ print(f"Done: {count} friendships_before saved.")
 
 # --- friendships_after ---
 print("\nFiltering friendships_after...")
-out = open("foursquare_dataset/my_friendships_after.tsv", "w")
+out = open("foursquare_dataset/my_friendships_after.tsv", "w", encoding="utf-8", errors="replace")
 count = 0
 for chunk in pd.read_csv(
     "foursquare_dataset/friendship_after_new.txt",
@@ -75,13 +75,14 @@ checkins = pd.read_csv(
 my_venues = set(checkins["venue_id"].values)
 print(f"Unique venues in my checkins: {len(my_venues)}")
 
-out = open("foursquare_dataset/my_POIs.tsv", "w")
+out = open("foursquare_dataset/my_POIs.tsv", "w", encoding="utf-8", errors="replace")
 count = 0
 for chunk in pd.read_csv(
     "foursquare_dataset/POIs.txt",
     sep="\t", header=None,
     names=["venue_id", "latitude", "longitude", "category", "country"],
-    chunksize=CHUNK
+    chunksize=CHUNK,
+    encoding="utf-8", encoding_errors="replace"
 ):
     filtered = chunk[chunk["venue_id"].isin(my_venues)]
     for _, row in filtered.iterrows():
