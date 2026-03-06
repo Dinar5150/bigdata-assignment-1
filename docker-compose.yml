@@ -19,6 +19,7 @@ services:
   citus_coord:
     image: citusdata/citus:12.1
     container_name: citus_coord
+    shm_size: 256mb
     environment:
       POSTGRES_USER: user
       POSTGRES_PASSWORD: pass
@@ -34,6 +35,7 @@ services:
   citus_worker1:
     image: citusdata/citus:12.1
     container_name: citus_worker1
+    shm_size: 256mb
     environment:
       POSTGRES_USER: user
       POSTGRES_PASSWORD: pass
@@ -46,6 +48,7 @@ services:
   citus_worker2:
     image: citusdata/citus:12.1
     container_name: citus_worker2
+    shm_size: 256mb
     environment:
       POSTGRES_USER: user
       POSTGRES_PASSWORD: pass

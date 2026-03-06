@@ -86,7 +86,7 @@ def plot_charts(data):
     plt.tight_layout()
     plt.savefig("performance_chart.png", dpi=150)
     print("Chart saved to performance_chart.png")
-    plt.show()
+    plt.close()
 
     # also make individual charts per query
     fig2, axes = plt.subplots(2, 2, figsize=(12, 8))
@@ -103,7 +103,7 @@ def plot_charts(data):
     plt.tight_layout()
     plt.savefig("performance_per_query.png", dpi=150)
     print("Per-query chart saved to performance_per_query.png")
-    plt.show()
+    plt.close()
 
 if __name__ == "__main__":
     data = load_results()

@@ -27,6 +27,7 @@ def run_query(cur, name, sql):
 def main():
     conn = psycopg2.connect(**CONN)
     cur = conn.cursor()
+    cur.execute("SET citus.enable_repartition_joins TO on;")
     results = {}
 
     # Q1
