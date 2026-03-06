@@ -27,7 +27,6 @@ for chunk in pd.read_csv(
     for _, row in filtered.iterrows():
         out.write(f"{row['user_id']}\t{row['venue_id']}\t{row['utc_time']}\t{row['timezone_offset']}\n")
     count += len(filtered)
-    print(f"  processed chunk, kept {count} checkins so far")
 out.close()
 print(f"Done: {count} checkins saved.")
 
