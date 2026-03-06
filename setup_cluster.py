@@ -78,22 +78,27 @@ def setup_scylla():
 def setup_mongo():
     print("=== Setting up MongoDB replica set ===")
     client = MongoClient("mongodb://localhost:27017/", directConnection=True)
-    try:
-        client.admin.command("replSetInitiate", {
-            "_id": "rs0",
-            "members": [
-                {"_id": 0, "host": "mongo1:27017"},
-                {"_id": 1, "host": "mongo2:27017"},
-                {"_id": 2, "host": "mongo3:27017"}
-            ]
-        })
-        print("Replica set initiated, waiting 10s for election...")
-        time.sleep(10)
-    except Exception as e:
-        if "already initialized" in str(e):
-            print("Replica set already initialized.")
+
+    client.admin.command("replSetInitiate", {
+        "_id": "rs0",
+        "members": [
+            {"_id": 0, "host": "mongo1:27017", "priority": 2},
+            {"_id": 1, "host": "mongo2:27017", "priority": 1},
+            {"_id": 2, "host": "mongo3:27017", "priority": 1}
+        ]
+    })
+    print("Replica set initiated, waiting for primary election...")
+
+    # wait until this node becomes primary
+    for _ in range(30):
+        status = client.admin.command("replSetGetStatus")
+        for m in status["members"]:
+            if m["name"] == "mongo1:27017" and m["stateStr"] == "PRIMARY":
+                break
         else:
-            raise e
+            time.sleep(2)
+            continue
+        break
 
     db = client["foursquaredb"]
     db.checkins.create_index("user_id")
