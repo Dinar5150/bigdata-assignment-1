@@ -29,7 +29,7 @@ def main():
     cur = conn.cursor()
     results = {}
 
-    # Q1: top 10 countries by total checkins
+    # Q1
     print("Q1: Top 10 countries with highest total check-ins")
     q1 = """
         SELECT p.country, COUNT(*) AS total_checkins
@@ -45,8 +45,7 @@ def main():
     for r in rows:
         print(f"    {r}")
 
-    # Q2: users who check in at POIs shared by their friends
-    # (friends that exist in BOTH before and after snapshots)
+    # Q2
     print("Q2: Users who prefer POIs shared by their friends (unchanged friendships)")
     q2 = """
         SELECT DISTINCT c1.user_id, c1.venue_id
@@ -65,7 +64,7 @@ def main():
     for r in rows:
         print(f"    {r}")
 
-    # Q3: most attractive venues by country
+    # Q3
     print("Q3: Most attractive venues by country")
     q3 = """
         SELECT country, venue_id, category, latitude, longitude, total_shares FROM (
@@ -85,7 +84,7 @@ def main():
     for r in rows:
         print(f"    {r}")
 
-    # Q4: categorize venues using full text search
+    # Q4
     print("Q4: Categorize venues using full text search")
     q4 = """
         SELECT
@@ -110,7 +109,6 @@ def main():
     cur.close()
     conn.close()
 
-    # save timing results
     with open("results_postgres.json", "w") as f:
         json.dump(results, f, indent=2)
     print(f"\nAll timings saved to results_postgres.json")

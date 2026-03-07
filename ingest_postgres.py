@@ -82,7 +82,6 @@ def ingest():
 
     elapsed = time.time() - start
 
-    # create indexes after bulk load for better performance
     print("[PostgreSQL] Creating indexes...")
     conn2 = psycopg2.connect(**CONN)
     conn2.autocommit = True

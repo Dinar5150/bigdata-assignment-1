@@ -28,7 +28,7 @@ def main():
     db = client["foursquaredb"]
     results = {}
 
-    # Q1: top 10 countries by total checkins (uses embedded country field)
+    # Q1
     print("Q1: Top 10 countries with highest total check-ins")
     def q1():
         pipeline = [
@@ -43,10 +43,9 @@ def main():
     for r in res:
         print(f"    {r['_id']}: {r['total']}")
 
-    # Q2: users visiting POIs shared by their unchanged friends
+    # Q2
     print("Q2: Users who prefer POIs shared by friends (unchanged friendships)")
     def q2():
-        # step 1: get unchanged friendships (in both before and after)
         before = set()
         for doc in db.friendships_before.find({}, {"_id": 0, "user_id": 1, "friend_id": 1}):
             before.add((doc["user_id"], doc["friend_id"]))
@@ -55,12 +54,10 @@ def main():
             after.add((doc["user_id"], doc["friend_id"]))
         unchanged = before & after
 
-        # step 2: build friend map
         friend_map = defaultdict(set)
         for u, f in unchanged:
             friend_map[u].add(f)
 
-        # step 3: get venue sets per user (only users that have friends)
         relevant_users = set(friend_map.keys())
         for friends in friend_map.values():
             relevant_users |= friends
@@ -69,7 +66,6 @@ def main():
         for doc in db.checkins.find({"user_id": {"$in": list(relevant_users)}}, {"user_id": 1, "venue_id": 1}):
             user_venues[doc["user_id"]].add(doc["venue_id"])
 
-        # step 4: find users visiting same POI as friend
         output = []
         for uid, friends in friend_map.items():
             if uid not in user_venues:
@@ -89,7 +85,7 @@ def main():
     for uid, vid in res[:20]:
         print(f"    user={uid}, venue={vid}")
 
-    # Q3: most attractive venues by country (uses embedded country/category)
+    # Q3
     print("Q3: Most attractive venues by country")
     def q3():
         pipeline = [
@@ -121,7 +117,7 @@ def main():
     for r in res:
         print(f"    {r.get('country','?')} | {r['venue_id']} | {r.get('category','?')} | shares={r['total_shares']}")
 
-    # Q4: categorize venues with text search
+    # Q4
     print("Q4: Categorize venues using text search")
     def q4():
         pipeline = [

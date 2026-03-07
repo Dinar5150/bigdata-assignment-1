@@ -54,7 +54,6 @@ def ingest():
             db.pois.insert_many(batch, ordered=False)
     print("[MongoDB]   POIs done.")
 
-    # checkins (denormalized: embed country + category from POIs)
     print("[MongoDB] Loading POI lookup for denormalization...")
     pois = {}
     for doc in db.pois.find({}, {"_id": 0, "venue_id": 1, "country": 1, "category": 1}):

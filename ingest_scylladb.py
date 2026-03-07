@@ -34,7 +34,6 @@ def ingest():
 
     start = time.time()
 
-    # load pois into a dict for denormalized checkin tables
     print("[ScyllaDB] Loading POIs into memory...")
     pois = {}
     with open(f"{DATA}/my_POIs.tsv", encoding="utf-8", errors="replace") as f:
