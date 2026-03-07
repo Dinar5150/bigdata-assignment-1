@@ -2,7 +2,7 @@ import pandas as pd
 import traceback
 
 MAX_STD = 103
-USERS_PERC = 0.25
+USERS_PERC = 0.05
 SID = input(f"Enter your SID [0-{MAX_STD-1}]: ")
 try:
     SID = int(SID)

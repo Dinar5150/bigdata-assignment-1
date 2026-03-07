@@ -36,8 +36,9 @@ for chunk in pd.read_csv(
     for _, row in filtered.iterrows():
         out.write(f"{row['user_id']}\t{row['venue_id']}\t{row['utc_time']}\t{row['timezone_offset']}\n")
     count += len(filtered)
+    print(f"\r  checkins: {count} rows kept", end="", flush=True)
 out.close()
-print(f"Done: {count} checkins saved.")
+print(f"\nDone: {count} checkins saved.")
 
 # --- friendships_before ---
 print("\nFiltering friendships_before...")
@@ -53,8 +54,9 @@ for chunk in pd.read_csv(
     for _, row in filtered.iterrows():
         out.write(f"{row['user_id']}\t{row['friend_id']}\n")
     count += len(filtered)
+    print(f"\r  friendships_before: {count} rows kept", end="", flush=True)
 out.close()
-print(f"Done: {count} friendships_before saved.")
+print(f"\nDone: {count} friendships_before saved.")
 
 # --- friendships_after ---
 print("\nFiltering friendships_after...")
@@ -70,8 +72,9 @@ for chunk in pd.read_csv(
     for _, row in filtered.iterrows():
         out.write(f"{row['user_id']}\t{row['friend_id']}\n")
     count += len(filtered)
+    print(f"\r  friendships_after: {count} rows kept", end="", flush=True)
 out.close()
-print(f"Done: {count} friendships_after saved.")
+print(f"\nDone: {count} friendships_after saved.")
 
 # --- POIs ---
 print("\nFiltering POIs...")
@@ -96,7 +99,8 @@ for chunk in pd.read_csv(
     for _, row in filtered.iterrows():
         out.write(f"{row['venue_id']}\t{row['latitude']}\t{row['longitude']}\t{row['category']}\t{row['country']}\n")
     count += len(filtered)
+    print(f"\r  POIs: {count} rows kept", end="", flush=True)
 out.close()
-print(f"Done: {count} POIs saved.")
+print(f"\nDone: {count} POIs saved.")
 
 print("\nAll data preparation finished!")
