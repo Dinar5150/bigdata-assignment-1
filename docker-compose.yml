@@ -4,6 +4,8 @@ services:
     image: postgres:16
     container_name: pg_standalone
     mem_limit: 512m
+    shm_size: 256mb
+    command: postgres -c shared_buffers=128MB -c work_mem=16MB -c effective_cache_size=256MB
     environment:
       POSTGRES_USER: user
       POSTGRES_PASSWORD: pass

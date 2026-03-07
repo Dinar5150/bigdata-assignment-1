@@ -34,7 +34,7 @@ def main():
     # Q1: top 10 countries by checkins
     print("Q1: Top 10 countries with highest total check-ins")
     def q1():
-        rows = session.execute("SELECT country, venue_id, user_id FROM checkins_by_country")
+        rows = session.execute("SELECT country FROM checkins_by_country")
         counter = Counter()
         for row in rows:
             counter[row.country] += 1
@@ -93,7 +93,7 @@ def main():
     # Q3: most attractive venues by country
     print("Q3: Most attractive venues by country")
     def q3():
-        rows = session.execute("SELECT country, venue_id, user_id, category, latitude, longitude FROM checkins_by_country")
+        rows = session.execute("SELECT country, venue_id, category, latitude, longitude FROM checkins_by_country")
         counter = Counter()
         info = {}
         for r in rows:
@@ -101,8 +101,13 @@ def main():
             counter[key] += 1
             if key not in info:
                 info[key] = (r.category, r.latitude, r.longitude)
-        top = counter.most_common(20)
-        return [(k[0], k[1], info[k][0], info[k][1], info[k][2], cnt) for k, cnt in top]
+        # get top venue per country
+        country_best = {}
+        for (country, vid), cnt in counter.items():
+            if country not in country_best or cnt > country_best[country][1]:
+                country_best[country] = (vid, cnt)
+        ranked = sorted(country_best.items(), key=lambda x: x[1][1], reverse=True)[:20]
+        return [(c, vid, info[(c, vid)][0], info[(c, vid)][1], info[(c, vid)][2], cnt) for c, (vid, cnt) in ranked]
     avg, res = timed(q3, "Q3")
     results["Q3"] = avg
     print("  Result:")

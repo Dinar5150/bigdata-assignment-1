@@ -38,8 +38,12 @@ CREATE TABLE IF NOT EXISTS friendships_after (
     friend_id INTEGER REFERENCES users(user_id),
     PRIMARY KEY (user_id, friend_id)
 );
+"""
+
+PG_INDEXES = """
 CREATE INDEX IF NOT EXISTS idx_checkins_user ON checkins(user_id);
 CREATE INDEX IF NOT EXISTS idx_checkins_venue ON checkins(venue_id);
+CREATE INDEX IF NOT EXISTS idx_checkins_user_venue ON checkins(user_id, venue_id);
 CREATE INDEX IF NOT EXISTS idx_pois_country ON pois(country);
 CREATE INDEX IF NOT EXISTS idx_pois_category ON pois USING gin(to_tsvector('english', category));
 """
@@ -73,26 +77,42 @@ CREATE TABLE IF NOT EXISTS friendships_after (
     friend_id INTEGER,
     PRIMARY KEY (user_id, friend_id)
 );
+"""
+
+CITUS_INDEXES = """
 CREATE INDEX IF NOT EXISTS idx_checkins_venue ON checkins(venue_id);
+CREATE INDEX IF NOT EXISTS idx_checkins_user_venue ON checkins(user_id, venue_id);
 CREATE INDEX IF NOT EXISTS idx_pois_country ON pois(country);
 CREATE INDEX IF NOT EXISTS idx_pois_category ON pois USING gin(to_tsvector('english', category));
 """
 
-def setup_postgres():
+def setup_postgres(indexes=False):
     print("=== Setting up PostgreSQL ===")
     conn = psycopg2.connect(host="localhost", port=5432, dbname="foursquaredb", user="user", password="pass")
     conn.autocommit = True
     cur = conn.cursor()
-    cur.execute(PG_SCHEMA)
+    if indexes:
+        print("Creating indexes...")
+        cur.execute(PG_INDEXES)
+    else:
+        cur.execute(PG_SCHEMA)
     cur.close()
     conn.close()
     print("PostgreSQL ready.")
 
-def setup_citus():
+def setup_citus(indexes=False):
     print("=== Setting up Citus cluster ===")
     conn = psycopg2.connect(host="localhost", port=5433, dbname="foursquaredb", user="user", password="pass")
     conn.autocommit = True
     cur = conn.cursor()
+
+    if indexes:
+        print("Creating indexes...")
+        cur.execute(CITUS_INDEXES)
+        cur.close()
+        conn.close()
+        print("Citus indexes ready.")
+        return
 
     cur.execute(CITUS_SCHEMA)
 
@@ -193,8 +213,17 @@ def setup_mongo():
     print("MongoDB ready.")
 
 if __name__ == "__main__":
-    setup_postgres()
-    setup_citus()
-    setup_scylla()
-    setup_mongo()
-    print("\nAll clusters configured!")
+    import sys
+    if len(sys.argv) > 1 and sys.argv[1] == "--indexes":
+        target = sys.argv[2] if len(sys.argv) > 2 else "all"
+        if target in ("all", "postgres"):
+            setup_postgres(indexes=True)
+        if target in ("all", "citus"):
+            setup_citus(indexes=True)
+        print("Indexes created.")
+    else:
+        setup_postgres()
+        setup_citus()
+        setup_scylla()
+        setup_mongo()
+        print("\nAll clusters configured!")

@@ -6,16 +6,8 @@ belonging to users from my_users.csv. Saves the filtered data
 as my_*.tsv files. Memory-safe for large files (~20M rows).
 """
 import pandas as pd
-from datetime import datetime
 
 CHUNK = 500_000
-
-def valid_timestamp(s):
-    try:
-        datetime.strptime(str(s), "%a %b %d %H:%M:%S %z %Y")
-        return True
-    except (ValueError, TypeError):
-        return False
 
 print("Loading my user IDs...")
 my_users = set(pd.read_csv("foursquare_dataset/my_users.csv")["userid"].values)
@@ -32,9 +24,8 @@ for chunk in pd.read_csv(
     chunksize=CHUNK
 ):
     filtered = chunk[chunk["user_id"].isin(my_users)]
-    filtered = filtered[filtered["utc_time"].apply(valid_timestamp)]
-    for _, row in filtered.iterrows():
-        out.write(f"{row['user_id']}\t{row['venue_id']}\t{row['utc_time']}\t{row['timezone_offset']}\n")
+    filtered = filtered[pd.to_datetime(filtered["utc_time"], errors="coerce", format="%a %b %d %H:%M:%S %z %Y").notna()]
+    filtered.to_csv(out, sep="\t", header=False, index=False, lineterminator="\n")
     count += len(filtered)
     print(f"\r  checkins: {count} rows kept", end="", flush=True)
 out.close()
@@ -51,8 +42,7 @@ for chunk in pd.read_csv(
     chunksize=CHUNK
 ):
     filtered = chunk[(chunk["user_id"].isin(my_users)) & (chunk["friend_id"].isin(my_users))]
-    for _, row in filtered.iterrows():
-        out.write(f"{row['user_id']}\t{row['friend_id']}\n")
+    filtered.to_csv(out, sep="\t", header=False, index=False, lineterminator="\n")
     count += len(filtered)
     print(f"\r  friendships_before: {count} rows kept", end="", flush=True)
 out.close()
@@ -69,8 +59,7 @@ for chunk in pd.read_csv(
     chunksize=CHUNK
 ):
     filtered = chunk[(chunk["user_id"].isin(my_users)) & (chunk["friend_id"].isin(my_users))]
-    for _, row in filtered.iterrows():
-        out.write(f"{row['user_id']}\t{row['friend_id']}\n")
+    filtered.to_csv(out, sep="\t", header=False, index=False, lineterminator="\n")
     count += len(filtered)
     print(f"\r  friendships_after: {count} rows kept", end="", flush=True)
 out.close()
@@ -96,8 +85,7 @@ for chunk in pd.read_csv(
     encoding="utf-8", encoding_errors="replace"
 ):
     filtered = chunk[chunk["venue_id"].isin(my_venues)]
-    for _, row in filtered.iterrows():
-        out.write(f"{row['venue_id']}\t{row['latitude']}\t{row['longitude']}\t{row['category']}\t{row['country']}\n")
+    filtered.to_csv(out, sep="\t", header=False, index=False, lineterminator="\n")
     count += len(filtered)
     print(f"\r  POIs: {count} rows kept", end="", flush=True)
 out.close()

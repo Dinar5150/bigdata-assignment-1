@@ -230,19 +230,22 @@ for uid, friends in friend_map.items():
 
 ### Q3: Most Attractive Venues by Country
 
-**PostgreSQL & Citus:** Groups checkins by venue (joining with POIs for country) and orders by total check-in count per venue.
+**PostgreSQL & Citus:** Groups checkins by venue (joining with POIs for country), then uses a window function to rank venues within each country and picks the top venue per country.
 
 ```sql
-SELECT p.country, p.venue_id, p.category, p.latitude, p.longitude,
-       COUNT(*) AS total_shares
-FROM checkins c
-JOIN pois p ON c.venue_id = p.venue_id
-GROUP BY p.country, p.venue_id, p.category, p.latitude, p.longitude
+SELECT country, venue_id, category, latitude, longitude, total_shares FROM (
+    SELECT p.country, p.venue_id, p.category, p.latitude, p.longitude,
+           COUNT(*) AS total_shares,
+           ROW_NUMBER() OVER (PARTITION BY p.country ORDER BY COUNT(*) DESC) AS rn
+    FROM checkins c
+    JOIN pois p ON c.venue_id = p.venue_id
+    GROUP BY p.country, p.venue_id, p.category, p.latitude, p.longitude
+) sub WHERE rn = 1
 ORDER BY total_shares DESC
 LIMIT 20;
 ```
 
-**ScyllaDB:** Scans the entire `checkins_by_country` table, counts each `(country, venue_id)` pair in Python with `Counter`, then picks the top 20.
+**ScyllaDB:** Scans the entire `checkins_by_country` table, counts each `(country, venue_id)` pair in Python with `Counter`, then picks the top venue per country.
 
 ```python
 rows = session.execute(
@@ -251,17 +254,27 @@ rows = session.execute(
 counter = Counter()
 for r in rows:
     counter[(r.country, r.venue_id)] += 1
-top = counter.most_common(20)
+# get top venue per country
+country_best = {}
+for (country, vid), cnt in counter.items():
+    if country not in country_best or cnt > country_best[country][1]:
+        country_best[country] = (vid, cnt)
 ```
 
-**MongoDB:** Aggregation pipeline that groups by `venue_id`, using `$first` to grab the embedded `country` and `category` fields.
+**MongoDB:** Aggregation pipeline that groups by `(country, venue_id)`, then groups again by country to pick the top venue per country.
 
 ```javascript
 db.checkins.aggregate([
     {$group: {
-        _id: "$venue_id",
+        _id: {country: "$country", venue_id: "$venue_id"},
         total_shares: {$sum: 1},
-        country: {$first: "$country"},
+        category: {$first: "$category"}
+    }},
+    {$sort: {total_shares: -1}},
+    {$group: {
+        _id: "$_id.country",
+        venue_id: {$first: "$_id.venue_id"},
+        total_shares: {$first: "$total_shares"},
         category: {$first: "$category"}
     }},
     {$sort: {total_shares: -1}},
@@ -309,15 +322,26 @@ for r in rows:
     else:                       counter["Others"] += 1
 ```
 
-**MongoDB:** Uses `$text` search with a text index on the `category` field.
+**MongoDB:** Uses an aggregation pipeline with `$switch` to classify each venue into a category using regex matching (first-match-wins, same logic as PostgreSQL's CASE).
 
 ```javascript
-// For each category:
-db.pois.countDocuments({$text: {$search: "Restaurant"}})
-db.pois.countDocuments({$text: {$search: "Club"}})
-db.pois.countDocuments({$text: {$search: "Museum"}})
-db.pois.countDocuments({$text: {$search: "Shop"}})
-// Others = total - sum of above
+db.pois.aggregate([
+    {$project: {
+        custom_category: {
+            $switch: {
+                branches: [
+                    {case: {$regexMatch: {input: {$toLower: "$category"}, regex: "restaurant"}}, then: "Restaurant"},
+                    {case: {$regexMatch: {input: {$toLower: "$category"}, regex: "club"}}, then: "Club"},
+                    {case: {$regexMatch: {input: {$toLower: "$category"}, regex: "museum"}}, then: "Museum"},
+                    {case: {$regexMatch: {input: {$toLower: "$category"}, regex: "shop"}}, then: "Shop"},
+                ],
+                default: "Others"
+            }
+        }
+    }},
+    {$group: {_id: "$custom_category", venue_count: {$sum: 1}}},
+    {$sort: {venue_count: -1}}
+])
 ```
 
 ![PostgreSQL Q4](screenshots/pg-q4.png)
@@ -329,7 +353,7 @@ db.pois.countDocuments({$text: {$search: "Shop"}})
 
 ## IV. Performance Analysis & Visualization
 
-### A. Summary Table [10 points]
+### A. Summary Table
 
 The `performance.py` script reads the result JSON files and generates the summary tables and charts.
 
@@ -353,19 +377,19 @@ Bar charts comparing query performance across the four databases.
 ![Performance comparison chart](performance_chart.png)
 ![Per-query performance chart](performance_per_query.png)
 
-### C. Analysis [10 points]
+### C. Analysis
 
-**Q1 - Top 10 Countries by Check-ins:**
+**Q1:**
 PostgreSQL was the fastest here (2.87s) since it can use the indexes on `checkins(venue_id)` and `pois(country)` to do the JOIN and GROUP BY efficiently. Citus was a bit slower (4.48s) - there's some overhead from coordinating the aggregation across shards, even though `pois` is a reference table. MongoDB did okay (7.08s) because the country is already embedded in each checkin doc so it's just a `$group`, but it still has to scan every document. ScyllaDB was much slower (73.94s) because it can't do aggregation on the server side, so everything gets pulled to the Python client and counted there.
 
-**Q2 - Users Preferring Friends' POIs:**
+**Q2:**
 Citus was really fast on Q2 (2.82s) because friendships and checkins are both sharded by `user_id`, so a lot of the joins stay on the same shard. The repartition join handles the cross-shard part for the friend side. PostgreSQL took much longer (56.19s) since it has to do a big three-way join on a single server with no parallelism. For MongoDB (38.86s) and ScyllaDB (62.71s), I had to do all the processing in Python - loading friendships, computing intersections, building venue sets - which is just slower than letting the database handle it.
 
-**Q3 - Most Attractive Venues:**
-PostgreSQL was fastest again (4.27s) with its JOIN and GROUP BY working well on one server. Citus was slower (7.23s) because the GROUP BY is on `venue_id` but the table is distributed by `user_id`, so data has to be shuffled between shards. MongoDB (23.62s) has to scan all the checkin docs and run the aggregation pipeline, which isn't as fast as PostgreSQL for this kind of grouped counting. ScyllaDB was slowest again (117.07s) - it has to stream the whole `checkins_by_country` table to Python and do all the counting there.
+**Q3:**
+PostgreSQL was fastest again (4.27s) with its JOIN and GROUP BY working well on one server. Citus was slower (7.23s) because the GROUP BY is on `venue_id` but the table is distributed by `user_id`, so data has to be shuffled between shards. MongoDB (23.62s) has to scan all the checkin docs and run the aggregation pipeline, which isn't as fast as PostgreSQL grouped counting. ScyllaDB was slowest (117.07s) - it has to stream the whole `checkins_by_country` table to Python and do all the counting there.
 
-**Q4 - Venue Categorization with Full Text Search:**
-MongoDB was fastest on Q4 (2.62s) thanks to its text index on `category` - each category search is basically just an index lookup. PostgreSQL (3.95s) and Citus (3.98s) were close behind using the GIN index with `to_tsvector/to_tsquery`. Citus has no advantage here since `pois` is a reference table, so the query only runs on one copy anyway. ScyllaDB was slowest (24.26s) because it has no full-text search at all, so I had to scan every POI and do string matching in Python.
+**Q4:**
+MongoDB was fastest on Q4 (2.62s) due to its text index on `category` - each category search is basically just an index lookup. PostgreSQL (3.95s) and Citus (3.98s) were close behind using the GIN index with `to_tsvector/to_tsquery`. ScyllaDB was slowest (24.26s) because it has no full-text search at all, so I had to scan every POI and do string matching in Python.
 
 ## Docker Infrastructure
 

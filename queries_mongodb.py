@@ -94,17 +94,23 @@ def main():
     def q3():
         pipeline = [
             {"$group": {
-                "_id": "$venue_id",
+                "_id": {"country": "$country", "venue_id": "$venue_id"},
                 "total_shares": {"$sum": 1},
-                "country": {"$first": "$country"},
+                "category": {"$first": "$category"}
+            }},
+            {"$sort": {"total_shares": -1}},
+            {"$group": {
+                "_id": "$_id.country",
+                "venue_id": {"$first": "$_id.venue_id"},
+                "total_shares": {"$first": "$total_shares"},
                 "category": {"$first": "$category"}
             }},
             {"$sort": {"total_shares": -1}},
             {"$limit": 20},
             {"$project": {
-                "venue_id": "$_id",
+                "country": "$_id",
+                "venue_id": 1,
                 "total_shares": 1,
-                "country": 1,
                 "category": 1
             }}
         ]
@@ -118,15 +124,24 @@ def main():
     # Q4: categorize venues with text search
     print("Q4: Categorize venues using text search")
     def q4():
-        categories = ["Restaurant", "Club", "Museum", "Shop"]
-        result = {}
-        for cat in categories:
-            count = db.pois.count_documents({"$text": {"$search": cat}})
-            result[cat] = count
-        total = db.pois.count_documents({})
-        known = sum(result.values())
-        result["Others"] = total - known
-        return result
+        pipeline = [
+            {"$project": {
+                "custom_category": {
+                    "$switch": {
+                        "branches": [
+                            {"case": {"$regexMatch": {"input": {"$toLower": "$category"}, "regex": "restaurant"}}, "then": "Restaurant"},
+                            {"case": {"$regexMatch": {"input": {"$toLower": "$category"}, "regex": "club"}}, "then": "Club"},
+                            {"case": {"$regexMatch": {"input": {"$toLower": "$category"}, "regex": "museum"}}, "then": "Museum"},
+                            {"case": {"$regexMatch": {"input": {"$toLower": "$category"}, "regex": "shop"}}, "then": "Shop"},
+                        ],
+                        "default": "Others"
+                    }
+                }
+            }},
+            {"$group": {"_id": "$custom_category", "venue_count": {"$sum": 1}}},
+            {"$sort": {"venue_count": -1}}
+        ]
+        return {r["_id"]: r["venue_count"] for r in db.pois.aggregate(pipeline)}
     avg, res = timed(q4, "Q4")
     results["Q4"] = avg
     print("  Result:")

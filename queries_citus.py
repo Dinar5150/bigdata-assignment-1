@@ -68,10 +68,14 @@ def main():
     # Q3
     print("Q3: Most attractive venues by country")
     q3 = """
-        SELECT p.country, p.venue_id, p.category, p.latitude, p.longitude, COUNT(*) AS total_shares
-        FROM checkins c
-        JOIN pois p ON c.venue_id = p.venue_id
-        GROUP BY p.country, p.venue_id, p.category, p.latitude, p.longitude
+        SELECT country, venue_id, category, latitude, longitude, total_shares FROM (
+            SELECT p.country, p.venue_id, p.category, p.latitude, p.longitude,
+                   COUNT(*) AS total_shares,
+                   ROW_NUMBER() OVER (PARTITION BY p.country ORDER BY COUNT(*) DESC) AS rn
+            FROM checkins c
+            JOIN pois p ON c.venue_id = p.venue_id
+            GROUP BY p.country, p.venue_id, p.category, p.latitude, p.longitude
+        ) sub WHERE rn = 1
         ORDER BY total_shares DESC
         LIMIT 20;
     """

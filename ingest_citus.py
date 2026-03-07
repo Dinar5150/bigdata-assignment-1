@@ -81,6 +81,20 @@ def ingest():
     print("[Citus]   friendships_after done.")
 
     elapsed = time.time() - start
+
+    # create indexes after bulk load for better performance
+    print("[Citus] Creating indexes...")
+    conn2 = psycopg2.connect(**CONN)
+    conn2.autocommit = True
+    cur2 = conn2.cursor()
+    cur2.execute("CREATE INDEX IF NOT EXISTS idx_checkins_venue ON checkins(venue_id);")
+    cur2.execute("CREATE INDEX IF NOT EXISTS idx_checkins_user_venue ON checkins(user_id, venue_id);")
+    cur2.execute("CREATE INDEX IF NOT EXISTS idx_pois_country ON pois(country);")
+    cur2.execute("CREATE INDEX IF NOT EXISTS idx_pois_category ON pois USING gin(to_tsvector('english', category));")
+    cur2.close()
+    conn2.close()
+    print("[Citus]   indexes created.")
+
     cur.close()
     conn.close()
     print(f"\n[Citus] Ingestion finished in {elapsed:.2f} seconds.")
