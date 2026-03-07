@@ -6,8 +6,16 @@ belonging to users from my_users.csv. Saves the filtered data
 as my_*.tsv files. Memory-safe for large files (~20M rows).
 """
 import pandas as pd
+from datetime import datetime
 
 CHUNK = 500_000
+
+def valid_timestamp(s):
+    try:
+        datetime.strptime(str(s), "%a %b %d %H:%M:%S %z %Y")
+        return True
+    except (ValueError, TypeError):
+        return False
 
 print("Loading my user IDs...")
 my_users = set(pd.read_csv("foursquare_dataset/my_users.csv")["userid"].values)
@@ -24,6 +32,7 @@ for chunk in pd.read_csv(
     chunksize=CHUNK
 ):
     filtered = chunk[chunk["user_id"].isin(my_users)]
+    filtered = filtered[filtered["utc_time"].apply(valid_timestamp)]
     for _, row in filtered.iterrows():
         out.write(f"{row['user_id']}\t{row['venue_id']}\t{row['utc_time']}\t{row['timezone_offset']}\n")
     count += len(filtered)
