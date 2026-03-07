@@ -52,6 +52,9 @@ def ingest():
             if len(parts) >= 4:
                 buf.write(f"{parts[0]}\t{parts[1]}\t{parts[2]}\t{parts[3]}\n")
                 count += 1
+                if count % 500000 == 0:
+                    print(f"\r  reading checkins: {count} rows", end="", flush=True)
+    print(f"\r  read {count} checkins, copying...        ", flush=True)
     buf.seek(0)
     cur.copy_expert("COPY checkins (user_id, venue_id, utc_time, timezone_offset) FROM STDIN WITH (FORMAT text, DELIMITER E'\\t')", buf)
     conn.commit()

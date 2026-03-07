@@ -19,9 +19,13 @@ def parse_time(s):
     return datetime.strptime(s, "%a %b %d %H:%M:%S %z %Y")
 
 def bulk_insert(session, prep, rows, label=""):
-    for i in range(0, len(rows), CHUNK):
+    total = len(rows)
+    for i in range(0, total, CHUNK):
         batch = rows[i:i+CHUNK]
         execute_concurrent_with_args(session, prep, batch, concurrency=CONC)
+        done = min(i + CHUNK, total)
+        print(f"\r  {label}: {done}/{total} ({100*done//total}%)", end="", flush=True)
+    print()
 
 def ingest():
     cluster = Cluster(["127.0.0.1"], port=9042)

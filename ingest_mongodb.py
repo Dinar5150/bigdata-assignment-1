@@ -81,11 +81,13 @@ def ingest():
             if len(batch) >= BATCH:
                 db.checkins.insert_many(batch, ordered=False)
                 count += len(batch)
+                if count % 100000 < BATCH:
+                    print(f"\r  checkins: {count} inserted", end="", flush=True)
                 batch = []
         if batch:
             db.checkins.insert_many(batch, ordered=False)
             count += len(batch)
-    print(f"[MongoDB]   checkins done: {count} rows.")
+    print(f"\n[MongoDB]   checkins done: {count} rows.")
 
     # friendships_before
     print("[MongoDB] Ingesting friendships_before...")
